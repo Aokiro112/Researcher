@@ -62,7 +62,7 @@ export interface ModelOption {
   id: string;
   name: string;
   provider: string;
-  badge?: 'Default' | 'New' | 'Max' | 'Internal';
+  badge?: 'Default' | 'New' | 'Max' | 'Internal' | 'Fast' | 'Ultra-Fast' | 'Reasoning';
   tierRequired: 'free' | 'pro' | 'max';
   description: string;
   isReasoning?: boolean;

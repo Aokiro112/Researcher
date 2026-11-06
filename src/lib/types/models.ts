@@ -50,6 +50,23 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     isReasoning: true,
   },
   {
+    id: 'groq-llama-3.3-70b',
+    name: 'Llama 3.3 70B (Groq)',
+    provider: 'Groq',
+    badge: 'Ultra-Fast',
+    tierRequired: 'free',
+    description: 'Extremely fast inference on Groq LPUs using Llama 3.3 70B.',
+  },
+  {
+    id: 'groq-deepseek-r1',
+    name: 'DeepSeek R1 (Groq)',
+    provider: 'Groq',
+    badge: 'Reasoning',
+    tierRequired: 'free',
+    description: 'DeepSeek R1 reasoning model running with high throughput on Groq.',
+    isReasoning: true,
+  },
+  {
     id: 'deepseek-r1',
     name: 'DeepSeek R1',
     provider: 'DeepSeek / Local',

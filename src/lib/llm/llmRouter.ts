@@ -12,6 +12,7 @@ export interface LLMStreamOptions {
 export async function* streamSynthesis(options: LLMStreamOptions): AsyncGenerator<string, void, unknown> {
   const { model, query, sources, mode = 'search' } = options;
 
+  const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -75,7 +76,60 @@ Never invent facts that are not grounded in the context.
 Sources:
 ${contextStr}`;
 
-  // 1. OpenAI Stream
+  // 1. Groq Stream (Ultra-fast inference via Groq LPUs)
+  if (groqKey && (model.includes('groq') || model.includes('llama') || model.includes('deepseek') || (!openaiKey && !geminiKey))) {
+    try {
+      const groqModel = model.includes('deepseek')
+        ? 'deepseek-r1-distill-llama-70b'
+        : 'llama-3.3-70b-versatile';
+
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: groqModel,
+          messages: [
+            { role: 'system', content: systemInstruction },
+            { role: 'user', content: query },
+          ],
+          stream: true,
+          temperature: 0.2,
+        }),
+      });
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                try {
+                  const parsed = JSON.parse(line.slice(6));
+                  const delta = parsed.choices?.[0]?.delta?.content;
+                  if (delta) yield delta;
+                } catch {}
+              }
+            }
+          }
+        }
+        return;
+      }
+    } catch (e) {
+      console.warn('Groq stream failed, falling back...');
+    }
+  }
+
+  // 2. OpenAI Stream
   if (openaiKey && (model.startsWith('gpt-') || model.startsWith('o'))) {
     try {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
