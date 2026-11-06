@@ -229,7 +229,7 @@ export function AnswerView({ entry, onFollowUp, isStreaming, onStop }: AnswerVie
       <SourcesDrawer sources={entry.sources} />
 
       {/* Thinking / Streaming Indicator */}
-      <ThinkingIndicator status={entry.status} sourcesCount={entry.sources.length} />
+      <ThinkingIndicator status={entry.status} sourcesCount={entry.sources.length} steps={entry.steps} />
 
       {/* Execution Time Badge */}
       {entry.status === 'COMPLETED' && (
@@ -244,7 +244,7 @@ export function AnswerView({ entry, onFollowUp, isStreaming, onStop }: AnswerVie
       {/* Answer Tab Content */}
       {activeTab === 'answer' && (
         <div className="prose prose-neutral dark:prose-invert max-w-none my-4">
-          {renderFormattedText(entry.responseText, entry.sources)}
+          {renderFormattedText(entry.responseText || (entry as any).text || '', entry.sources)}
         </div>
       )}
 

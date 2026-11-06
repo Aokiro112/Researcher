@@ -66,9 +66,11 @@ export function startSearchStream(
                 const patchResult = applyPatch(state, patches, true, false);
                 state = patchResult.newDocument;
 
+                const currentText = state.text !== undefined ? state.text : state.responseText || '';
+
                 callbacks.onUpdate({
                   status: state.status,
-                  responseText: state.text || '',
+                  responseText: currentText,
                   sources: state.sources || [],
                   steps: state.steps || [],
                   timeTakenMs: state.timeTakenMs,
@@ -81,7 +83,11 @@ export function startSearchStream(
         }
       }
 
-      callbacks.onComplete(state as ThreadEntry);
+      const finalText = state.text !== undefined ? state.text : state.responseText || '';
+      callbacks.onComplete({
+        ...state,
+        responseText: finalText,
+      } as ThreadEntry);
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         callbacks.onError(err);

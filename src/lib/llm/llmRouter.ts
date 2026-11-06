@@ -7,10 +7,12 @@ export interface LLMStreamOptions {
   sources: SourceItem[];
   mode?: string;
   systemPrompt?: string;
+  userPrompt?: string;
+  fallbackText?: string;
 }
 
 export async function* streamSynthesis(options: LLMStreamOptions): AsyncGenerator<string, void, unknown> {
-  const { model, query, sources, mode = 'search' } = options;
+  const { model, query, sources, mode = 'search', systemPrompt, userPrompt, fallbackText } = options;
 
   const groqKey = process.env.GROQ_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -66,7 +68,7 @@ export async function* streamSynthesis(options: LLMStreamOptions): AsyncGenerato
     .map((s) => `[${s.ordinal}] "${s.title}" (${s.domain}):\n${s.snippet}`)
     .join('\n\n');
 
-  const systemInstruction = `You are OpenPPLX, a high-precision AI search and research assistant.
+  const defaultSystemInstruction = `You are OpenPPLX, a high-precision AI search and research assistant.
 Provide a clear, authoritative, and direct answer to the user's query using the provided sources.
 Always cite your sources inline using brackets like [1], [2], corresponding to the source ordinals.
 Format your output in clean Markdown, using bullet points, comparison tables, and bold headers where appropriate.
@@ -75,6 +77,9 @@ Never invent facts that are not grounded in the context.
 
 Sources:
 ${contextStr}`;
+
+  const activeSystem = systemPrompt || defaultSystemInstruction;
+  const activePrompt = userPrompt || query;
 
   // 1. Groq Stream (Ultra-fast inference via Groq LPUs)
   if (groqKey && (model.includes('groq') || model.includes('llama') || model.includes('deepseek') || (!openaiKey && !geminiKey))) {
@@ -92,8 +97,8 @@ ${contextStr}`;
         body: JSON.stringify({
           model: groqModel,
           messages: [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: query },
+            { role: 'system', content: activeSystem },
+            { role: 'user', content: activePrompt },
           ],
           stream: true,
           temperature: 0.2,
@@ -141,8 +146,8 @@ ${contextStr}`;
         body: JSON.stringify({
           model: model.includes('6') ? 'gpt-4o' : model,
           messages: [
-            { role: 'system', content: systemInstruction },
-            { role: 'user', content: query },
+            { role: 'system', content: activeSystem },
+            { role: 'user', content: activePrompt },
           ],
           stream: true,
         }),
@@ -177,7 +182,7 @@ ${contextStr}`;
     }
   }
 
-  // 2. Ollama Local Stream
+  // 3. Ollama Local Stream
   if (model.includes('llama') || model.includes('deepseek') || process.env.USE_OLLAMA === 'true') {
     try {
       const res = await fetch(`${ollamaUrl}/api/generate`, {
@@ -185,7 +190,7 @@ ${contextStr}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: model.includes('deepseek') ? 'deepseek-r1' : 'llama3.2',
-          prompt: `${systemInstruction}\n\nUser Question: ${query}\nAnswer:`,
+          prompt: `${activeSystem}\n\nUser Question: ${activePrompt}\nAnswer:`,
           stream: true,
         }),
       });
@@ -218,17 +223,27 @@ ${contextStr}`;
     }
   }
 
-  // 3. Fallback High-Fidelity Synthesizer (Works 100% offline with zero API keys!)
-  // Produces a comprehensive grounded research response synthesized from the scraped sources.
+  // 4. Deterministic Research Synthesizer (Works 100% offline with zero API keys!)
+  // If fallbackText was computed by the ResearchSynthesizer, stream it with realistic cadence
+  if (fallbackText) {
+    const paragraphs = fallbackText.split('\n\n');
+    for (let i = 0; i < paragraphs.length; i++) {
+      yield paragraphs[i] + (i < paragraphs.length - 1 ? '\n\n' : '');
+      await new Promise((r) => setTimeout(r, 45));
+    }
+    return;
+  }
+
+  // Default basic fallback
   yield `# Summary of Findings for: "${query}"\n\n`;
 
   if (sources.length > 0) {
     yield `Based on current information from **${sources.length} sources** ([1] to [${sources.length}]):\n\n`;
-    
+
     for (const source of sources) {
       yield `### Key Insights from [${source.ordinal}] ${source.domain}\n`;
       yield `${source.snippet || source.title} [${source.ordinal}].\n\n`;
-      await new Promise((r) => setTimeout(r, 60)); // Simulate realistic streaming pace
+      await new Promise((r) => setTimeout(r, 50));
     }
 
     yield `## Overview & Analysis\n\n`;

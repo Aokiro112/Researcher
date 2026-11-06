@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server';
 import { Operation } from 'fast-json-patch';
-import { executeSearch } from '@/lib/search/searchEngine';
-import { scrapeUrl } from '@/lib/search/scraper';
-import { runDeepResearchPlanning } from '@/lib/search/deepResearch';
+import { executeResearchPipeline } from '@/lib/research/researchEngine';
 import { streamSynthesis } from '@/lib/llm/llmRouter';
-import { SourceItem, ExecutionStep } from '@/lib/types/thread';
+import { executeSearch } from '@/lib/search/searchEngine';
+import { ExecutionStep, SourceItem } from '@/lib/types/thread';
 
 export async function POST(req: NextRequest) {
   let body: any = {};
@@ -38,7 +37,7 @@ export async function POST(req: NextRequest) {
               {
                 stepType: 'INITIAL_QUERY',
                 status: 'RUNNING',
-                content: { query, mode },
+                content: { query, mode, model },
               } as ExecutionStep,
             ],
           },
@@ -46,47 +45,11 @@ export async function POST(req: NextRequest) {
           { op: 'add', path: '/text', value: '' },
         ]);
 
-        let finalSources: SourceItem[] = [];
-
-        // 2. Execution depending on mode
-        if (mode === 'deep_research') {
-          // Deep Research Planner
-          const deepPlan = await runDeepResearchPlanning(query, (step) => {
-            emit([
-              { op: 'replace', path: '/steps/0/status', value: 'COMPLETED' },
-              { op: 'add', path: '/steps/1', value: step },
-            ]);
-          });
-          finalSources = deepPlan.allSources;
-
-          emit([
-            { op: 'replace', path: '/sources', value: finalSources },
-            {
-              op: 'add',
-              path: '/steps/2',
-              value: {
-                stepType: 'SYNTHESIS',
-                status: 'RUNNING',
-              } as ExecutionStep,
-            },
-            { op: 'replace', path: '/status', value: 'STREAMING' },
-          ]);
-        } else {
-          // Standard Search Execution
+        // Special dedicated harnesses for Model Council & Learn Step-by-Step
+        if (mode === 'model_council' || mode === 'learn') {
           const searchResults = await executeSearch(query, 6);
-
-          finalSources = [...searchResults];
-          if (searchResults.length > 0) {
-            try {
-              const pageData = await scrapeUrl(searchResults[0].url, 3000);
-              if (pageData && pageData.text) {
-                finalSources[0].snippet = pageData.text.slice(0, 400);
-              }
-            } catch {}
-          }
-
           emit([
-            { op: 'replace', path: '/sources', value: finalSources },
+            { op: 'replace', path: '/sources', value: searchResults },
             { op: 'replace', path: '/steps/0/status', value: 'COMPLETED' },
             {
               op: 'add',
@@ -98,34 +61,70 @@ export async function POST(req: NextRequest) {
             },
             { op: 'replace', path: '/status', value: 'STREAMING' },
           ]);
+
+          const tokenGenerator = streamSynthesis({
+            model,
+            query,
+            sources: searchResults,
+            mode,
+          });
+
+          let acc = '';
+          for await (const tok of tokenGenerator) {
+            acc += tok;
+            emit([{ op: 'replace', path: '/text', value: acc }]);
+          }
+
+          const duration = Math.round((Date.now() - startTime) / 1000);
+          emit([
+            { op: 'replace', path: '/steps/1/status', value: 'COMPLETED' },
+            { op: 'replace', path: '/status', value: 'COMPLETED' },
+            { op: 'add', path: '/timeTakenMs', value: duration },
+          ]);
+          return;
         }
 
-        // 3. LLM Streaming Synthesis
-        const tokenGenerator = streamSynthesis({
-          model,
+        // Standard & Deep Research Mode: Run the Multi-Step Research Engine
+        const stepIndices = new Map<string, number>();
+        stepIndices.set('INITIAL_QUERY', 0);
+
+        await executeResearchPipeline({
           query,
-          sources: finalSources,
           mode,
+          model,
+          onStepUpdate: (step: ExecutionStep) => {
+            const existingIdx = stepIndices.get(step.stepType);
+            if (existingIdx !== undefined) {
+              emit([{ op: 'replace', path: `/steps/${existingIdx}`, value: step }]);
+            } else {
+              const newIdx = stepIndices.size;
+              stepIndices.set(step.stepType, newIdx);
+              emit([{ op: 'add', path: `/steps/${newIdx}`, value: step }]);
+            }
+          },
+          onSourcesFound: (sources: SourceItem[]) => {
+            emit([{ op: 'replace', path: '/sources', value: sources }]);
+          },
+          onTokenChunk: (text: string) => {
+            emit([
+              { op: 'replace', path: '/status', value: 'STREAMING' },
+              { op: 'replace', path: '/text', value: text },
+            ]);
+          },
         });
 
-        let accumulatedText = '';
-        for await (const token of tokenGenerator) {
-          accumulatedText += token;
-          emit([{ op: 'replace', path: '/text', value: accumulatedText }]);
-        }
-
-        // 4. Mark Completed
+        // Mark completion
         const duration = Math.round((Date.now() - startTime) / 1000);
         emit([
-          { op: 'replace', path: `/steps/${mode === 'deep_research' ? 2 : 1}/status`, value: 'COMPLETED' },
+          { op: 'replace', path: '/steps/0/status', value: 'COMPLETED' },
           { op: 'replace', path: '/status', value: 'COMPLETED' },
           { op: 'add', path: '/timeTakenMs', value: duration },
         ]);
       } catch (err: any) {
-        console.error('SSE Stream execution error:', err);
+        console.error('SSE Research Stream error:', err);
         emit([
           { op: 'replace', path: '/status', value: 'FAILED' },
-          { op: 'add', path: '/error', value: err.message || 'Stream processing error' },
+          { op: 'add', path: '/error', value: err.message || 'Research stream error' },
         ]);
       } finally {
         controller.close();

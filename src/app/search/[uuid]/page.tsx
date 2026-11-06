@@ -57,12 +57,14 @@ export default function SearchThreadPage() {
           ...updatedState,
         }));
       },
-      onComplete: (finalState) => {
+      onComplete: (finalState: any) => {
         setIsStreaming(false);
         setEntry((prev) => {
+          const resolvedText = finalState.text !== undefined ? finalState.text : finalState.responseText || prev.responseText || '';
           const completed = {
             ...prev,
             ...finalState,
+            responseText: resolvedText,
             status: 'COMPLETED' as const,
           };
           saveThread({
@@ -121,9 +123,10 @@ export default function SearchThreadPage() {
       onUpdate: (updatedState) => {
         setEntry((prev) => ({ ...prev, ...updatedState }));
       },
-      onComplete: (finalState) => {
+      onComplete: (finalState: any) => {
         setIsStreaming(false);
-        setEntry((prev) => ({ ...prev, ...finalState, status: 'COMPLETED' }));
+        const resolvedText = finalState.text !== undefined ? finalState.text : finalState.responseText || '';
+        setEntry((prev) => ({ ...prev, ...finalState, responseText: resolvedText, status: 'COMPLETED' }));
       },
       onError: (err) => {
         setIsStreaming(false);

@@ -16,11 +16,17 @@ export interface SourceItem {
 
 export type StepType =
   | 'INITIAL_QUERY'
+  | 'QUERY_ANALYSIS'
+  | 'RESEARCH_PLAN'
   | 'WEB_SEARCH'
   | 'MULTI_QUERY'
   | 'PARALLEL_RETRIEVAL'
+  | 'CONTENT_EXTRACTION'
+  | 'EVIDENCE_EXTRACTION'
+  | 'CLAIM_VERIFICATION'
   | 'REASONING'
   | 'SYNTHESIS'
+  | 'CITATION_VALIDATION'
   | 'TOOL_CALL';
 
 export type StepStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
