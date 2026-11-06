@@ -1,0 +1,68 @@
+import { ModelOption } from './thread';
+
+export const AVAILABLE_MODELS: ModelOption[] = [
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    provider: 'Google',
+    badge: 'Default',
+    tierRequired: 'free',
+    description: 'Fast synthesis and broad reasoning for everyday queries.',
+  },
+  {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    provider: 'Google',
+    badge: 'New',
+    tierRequired: 'pro',
+    description: 'Frontier multimodal model with expanded context window.',
+  },
+  {
+    id: 'claude-sonnet-5.5',
+    name: 'Claude Sonnet 5.5',
+    provider: 'Anthropic',
+    tierRequired: 'pro',
+    description: 'Balanced coding, writing, and analytical depth.',
+  },
+  {
+    id: 'gpt-6.1-sol',
+    name: 'GPT-6.1 Sol',
+    provider: 'OpenAI',
+    tierRequired: 'pro',
+    description: 'Advanced reasoning and factual accuracy across domains.',
+  },
+  {
+    id: 'claude-opus-5.5-max',
+    name: 'Claude Opus 5.5 Max',
+    provider: 'Anthropic',
+    badge: 'Max',
+    tierRequired: 'max',
+    description: 'Frontier AI model with maximum reasoning and synthesis power.',
+    isReasoning: true,
+  },
+  {
+    id: 'gpt-6-astra-max',
+    name: 'GPT-6 Astra Max',
+    provider: 'OpenAI',
+    badge: 'Max',
+    tierRequired: 'max',
+    description: 'Maximum reasoning effort with autonomous verification.',
+    isReasoning: true,
+  },
+  {
+    id: 'deepseek-r1',
+    name: 'DeepSeek R1',
+    provider: 'DeepSeek / Local',
+    badge: 'New',
+    tierRequired: 'free',
+    description: 'Open-weights reasoning model running locally or via API.',
+    isReasoning: true,
+  },
+  {
+    id: 'llama-3.3-70b',
+    name: 'Llama 3.3 70B',
+    provider: 'Ollama / Local',
+    tierRequired: 'free',
+    description: 'Fast, high-fidelity local open-weights search synthesis.',
+  },
+];
